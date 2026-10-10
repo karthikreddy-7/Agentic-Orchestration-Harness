@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subagent-result.schema.json",
+  "title": "AOH Subagent Result",
+  "type": "object",
+  "required": [
+    "status",
+    "summary",
+    "files_changed",
+    "checks",
+    "confidence",
+    "blockers_or_risks",
+    "metrics"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["completed", "partial", "blocked", "failed"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "result"],
+        "properties": {
+          "name": { "type": "string" },
+          "result": {
+            "type": "string",
+            "enum": ["passed", "failed", "not_run", "blocked"]
+          },
+          "details": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["score", "rationale"],
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "rationale": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "blockers_or_risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Report only metrics actually available; do not estimate missing values."
+    }
+  },
+  "additionalProperties": false
+}
