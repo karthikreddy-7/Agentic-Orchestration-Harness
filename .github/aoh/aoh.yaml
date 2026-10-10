@@ -1,0 +1,15 @@
+version: 1
+project:
+  name: replace-with-project-name
+  description: Project-specific AOH configuration
+
+features:
+  hooks: false
+  persistent_memory: false
+  external_mcp: false
+
+workflows:
+  directories:
+    - workflows/shared
+
+teams: []
