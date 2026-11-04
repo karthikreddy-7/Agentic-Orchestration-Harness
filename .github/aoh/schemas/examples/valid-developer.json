@@ -1,0 +1,10 @@
+{
+  "agent": "Trade Capture Developer",
+  "status": "completed",
+  "summary": "Added validateTradeId() to trades.mjs with four tests.",
+  "files_changed": ["examples/equities/trade-capture/trades.mjs", "examples/equities/trade-capture/trades.test.mjs"],
+  "checks": [{ "name": "npm test", "result": "passed", "details": "8 tests, 0 failures" }],
+  "confidence": { "score": 0.8, "rationale": "Covers format and calendar dates; leap years not tested." },
+  "blockers_or_risks": [],
+  "metrics": { "tests_passed": 8 }
+}

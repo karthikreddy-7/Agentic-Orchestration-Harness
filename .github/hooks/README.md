@@ -1,5 +1,22 @@
-# Optional AOH hooks
+# AOH hooks
 
-This directory is reserved for opt-in VS Code hook configuration. No hooks are enabled by this starter structure.
+Hooks are the **push** half of AOH's context model: they inject each agent's `config.md` chain from `.github/aoh/knowledge/`.
 
-Add a hook configuration only after confirming the target VS Code harness supports the required events and reviewing the invoked scripts, permissions, captured data, redaction, and retention. Do not assume local hooks run in Agent Host sessions or provide complete prompt, tool, or token telemetry.
+| Hook | Where it is registered | Fires for | Agent name from |
+|---|---|---|---|
+| `subagentStart` | `aoh-context.json` (repository hook) | every subagent | stdin `agentName` |
+| `sessionStart` | `hooks:` frontmatter of each `*-orchestrator.agent.md` | the selected orchestrator | `--agent "<name>"` argument |
+
+Both run `aoh-context.mjs`, which returns `{ "additionalContext": "..." }`. Copilot prepends it to the subagent's first message, or adds it to the session for orchestrators. Agents without a knowledge folder, such as built-in subagents, get nothing injected.
+
+Preview what an agent receives:
+
+```bash
+npm run context -- "Trade Capture Developer"
+```
+
+## Notes
+
+- Hooks need a trusted workspace. In the Local harness they also need `chat.useHooks`.
+- Hook failures and timeouts are **fail-open**: the agent runs without its context. Every agent's instructions therefore say to load the chain itself if the `# AOH context for …` block is missing.
+- The hook reads only files under `.github/aoh/knowledge/`. It writes nothing and logs nothing.

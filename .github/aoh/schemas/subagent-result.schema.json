@@ -13,9 +13,19 @@
     "metrics"
   ],
   "properties": {
+    "agent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Name of the subagent that produced the report."
+    },
     "status": {
       "type": "string",
-      "enum": ["completed", "partial", "blocked", "failed"]
+      "enum": [
+        "completed",
+        "partial",
+        "blocked",
+        "failed"
+      ]
     },
     "summary": {
       "type": "string",
@@ -23,40 +33,61 @@
     },
     "files_changed": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "checks": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "result"],
+        "required": [
+          "name",
+          "result"
+        ],
         "properties": {
-          "name": { "type": "string" },
+          "name": {
+            "type": "string"
+          },
           "result": {
             "type": "string",
-            "enum": ["passed", "failed", "not_run", "blocked"]
+            "enum": [
+              "passed",
+              "failed",
+              "not_run",
+              "blocked"
+            ]
           },
-          "details": { "type": "string" }
+          "details": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
     },
     "confidence": {
       "type": "object",
-      "required": ["score", "rationale"],
+      "required": [
+        "score",
+        "rationale"
+      ],
       "properties": {
         "score": {
           "type": "number",
           "minimum": 0,
           "maximum": 1
         },
-        "rationale": { "type": "string" }
+        "rationale": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "blockers_or_risks": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "metrics": {
       "type": "object",

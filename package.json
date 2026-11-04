@@ -1,0 +1,16 @@
+{
+  "name": "agentic-orchestration-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A copyable orchestrator + subagent harness for VS Code Copilot custom agents.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"examples/**/*.test.mjs\"",
+    "check": "node .github/aoh/scripts/check-config.mjs",
+    "validate-reports": "node .github/aoh/scripts/validate-report.mjs",
+    "context": "node .github/hooks/aoh-context.mjs --print --agent"
+  }
+}
