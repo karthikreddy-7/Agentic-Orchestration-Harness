@@ -73,18 +73,21 @@ Team orchestrators and the Equities Orchestrator are peers that share the same s
 │   ├── risk-analytics-developer.agent.md
 │   └── risk-analytics-reviewer.agent.md
 ├── skills/                                  # PULLED: reference manuals, named by layer
-│   ├── equities-<topic>/SKILL.md            # division
-│   └── equities-trade-capture-<topic>/SKILL.md   # team
+│   ├── equities-trade-lifecycle/SKILL.md                 # division
+│   ├── equities-trade-capture-trade-id-format/SKILL.md   # team
+│   └── equities-risk-analytics-exposure-rules/SKILL.md   # team
 ├── hooks/
-│   ├── aoh-context.json                     # registers the context hooks
-│   └── aoh-context.mjs                      # loads the config.md chain
+│   ├── aoh-context.json                     # registers the subagentStart hook
+│   ├── aoh-context.mjs                      # loads the config.md chain (+ optional trace)
+│   └── README.md
 └── aoh/
-    ├── aoh.yaml                             # project identity, runs dir, extension points
+    ├── aoh.yaml                             # project identity, runs dir, features
     ├── knowledge/                           # PUSHED: layered rules, one config.md per layer
+    │   ├── README.md
     │   ├── shared/config.md                 # every agent: rules, output contract, resume
     │   └── equities/
     │       ├── config.md                    # division rules, regulations, workflows
-    │       ├── workflows/                   # division workflows
+    │       ├── workflows/plan-approve-implement-review.md
     │       ├── equities-orchestrator/config.md
     │       ├── equities-architect/config.md
     │       ├── trade-capture/
@@ -97,12 +100,21 @@ Team orchestrators and the Equities Orchestrator are peers that share the same s
     │           ├── risk-analytics-orchestrator/config.md
     │           ├── risk-analytics-developer/config.md
     │           └── risk-analytics-reviewer/config.md
-    ├── schemas/subagent-result.schema.json  # the status contract
-    ├── scripts/                             # check-config, validate-report
-    └── templates/                           # copy-me agent and config.md templates
+    ├── schemas/
+    │   ├── subagent-result.schema.json      # the status contract
+    │   └── examples/                        # one valid and one invalid report, used by npm run check
+    ├── scripts/
+    │   ├── check-config.mjs                 # npm run check
+    │   ├── validate-report.mjs              # npm run validate-reports
+    │   └── lib/                             # context loader, mini schema validator
+    └── templates/                           # orchestrator, subagent and config.md templates
 .aoh/                                        # gitignored runtime output
-└── runs/<run-id>/*.json
-examples/equities/trade-capture/             # demo code the quickstart works on
+├── runs/<run-id>/*.json                     # status reports, one per finished step
+└── logs/hook-trace.log                      # hook firings (when features.hook_trace is on)
+examples/equities/
+├── trade-capture/trades.mjs (+ test)        # quickstart target
+└── risk-analytics/exposure.mjs (+ test)
+package.json                                 # npm scripts; no dependencies
 ```
 
 ## How context reaches an agent
@@ -135,7 +147,7 @@ Skills are reference manuals: formats, lookup tables, procedures, long checklist
 |---|---|---|
 | shared | `aoh-<topic>` | (none in the example) |
 | division | `<division>-<topic>` | `equities-trade-lifecycle` |
-| team | `<division>-<team>-<topic>` | `equities-trade-capture-booking-checks` |
+| team | `<division>-<team>-<topic>` | `equities-trade-capture-trade-id-format` |
 
 Each layer's `config.md` names the skills relevant to that layer, so an agent knows what it can pull without having it all injected.
 
@@ -158,18 +170,18 @@ Each layer's `config.md` names the skills relevant to that layer, so an agent kn
 
 ### The status contract
 
-Every subagent ends its reply with one fenced `json` block matching `.github/aoh/schemas/subagent-result.schema.json`:
+Every subagent ends its reply with one fenced `json` block matching `.github/aoh/schemas/subagent-result.schema.json`. The exact shape and field rules are pushed to every agent from `knowledge/shared/config.md`; `checks` must be objects, not strings:
 
 ```json
 {
   "agent": "Trade Capture Developer",
   "status": "completed",
-  "summary": "Added validateTradeId() with four tests.",
+  "summary": "Added validateTradeId() to trades.mjs with four tests.",
   "files_changed": ["examples/equities/trade-capture/trades.mjs", "examples/equities/trade-capture/trades.test.mjs"],
-  "checks": [{ "name": "npm test", "result": "passed", "details": "6 tests, 0 failures" }],
-  "confidence": { "score": 0.8, "rationale": "Covers format and checksum; lowercase input not covered." },
+  "checks": [{ "name": "npm test", "result": "passed", "details": "8 tests, 0 failures" }],
+  "confidence": { "score": 0.8, "rationale": "Covers format and calendar dates; leap years not tested." },
   "blockers_or_risks": [],
-  "metrics": { "tests_passed": 6 }
+  "metrics": { "tests_passed": 8 }
 }
 ```
 
@@ -191,15 +203,19 @@ Requires VS Code with GitHub Copilot (agent mode) and Node.js 22+.
 5. The **Trade Capture Developer** implements it and runs `npm test`. The **Trade Capture Reviewer** reviews it.
 6. Read the summary, then run `npm run validate-reports -- .aoh/runs/<run-id>`.
 
+To confirm the hooks fired, check `.aoh/logs/hook-trace.log`: you should see one `sessionStart` line for the orchestrator and one `subagentStart` line per subagent, each with the number of config files injected.
+
 ## Adding a subagent
 
 1. Copy `.github/aoh/templates/subagent.agent.md` to `.github/agents/<agent-name>.agent.md`. Set `name`, `description`, `tools`, `agents: []` and `user-invocable: false`.
 2. Create its knowledge folder in the right place in the tree, for example `knowledge/equities/risk-analytics/<agent-name>/config.md`. The folder name must be the agent `name` in lowercase with hyphens.
 3. Add the agent's `name` to the `agents:` list of each orchestrator that should call it: its team orchestrator and, for team specialists, the division orchestrator.
-
-To add a team, create `knowledge/<division>/<team>/config.md`, a `<team>-orchestrator` agent and knowledge folder (copy an existing team orchestrator, including its agent-scoped `sessionStart` hook), and its specialists. Add the specialists to the division orchestrator's `agents:` list.
 4. If it edits files, make sure its team `config.md` declares a write scope.
 5. Run `npm run check`.
+
+### Adding a team
+
+Create `knowledge/<division>/<team>/config.md` (write scope, test command, rules, skills), a `<team>-orchestrator` agent from `templates/orchestrator.agent.md` with its knowledge folder, and the team's specialists. Keep the orchestrator's agent-scoped `sessionStart` hook and change the name it passes. Add the specialists to the division orchestrator's `agents:` list.
 
 ## Replacing the example organisation
 
@@ -216,10 +232,11 @@ The core (agents, knowledge push, status contract, approval gate) needs no exter
 
 - **MCP:** add servers in `.vscode/mcp.json` and grant them per agent with `tools: ['<server>/*']`. Not used by the example.
 - **Persistent memory:** `.aoh/memory/` is reserved for it. Not implemented; decide retention and redaction before adding it.
+- **Hook trace:** `features.hook_trace` (on in the example) logs each hook firing to `.aoh/logs/hook-trace.log`: agent name and file count only, never content.
 
 ## Limits and open problems
 
-- **Hooks depend on the harness.** The context hooks use Copilot's `subagentStart` event and agent-scoped `sessionStart` hooks; behaviour may differ between the Copilot and Local harnesses. Hook failures and timeouts are fail-open, so an agent can run without its context. The orchestrator's instructions tell it to stop if a subagent reports missing context. Turn on `features.hook_trace` and check `.aoh/logs/hook-trace.log` to see whether they fire in your setup.
+- **Hooks depend on the harness.** The context hooks use Copilot's `subagentStart` event and agent-scoped `sessionStart` hooks; behaviour may differ between the Copilot and Local harnesses. Hook failures and timeouts are fail-open, so an agent can run without its context. Every agent is told to load its own chain if the context block is missing, and to report `blocked` if it can't. Turn on `features.hook_trace` and check `.aoh/logs/hook-trace.log` to see whether they fire in your setup.
 - **Reports are self-assessed.** The schema checks a report's shape, not whether it is true.
 - **No evals yet.** There is no automated way to measure whether the agents do the right thing. That is the main gap.
 
@@ -227,7 +244,7 @@ The core (agents, knowledge push, status contract, approval gate) needs no exter
 
 | Command | What it does |
 |---|---|
-| `npm run check` | Checks agent frontmatter, `agents:` references, knowledge folders and the schema |
+| `npm run check` | Checks agent frontmatter, `agents:` references, knowledge folders, workflows, skills and the schema |
 | `npm test` | Runs the demo tests |
 | `npm run validate-reports -- <dir or file>` | Validates status reports against the schema |
 | `npm run context -- "<Agent Name>"` | Prints exactly what the hooks inject for that agent |
