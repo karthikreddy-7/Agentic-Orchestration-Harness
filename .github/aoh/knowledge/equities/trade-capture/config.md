@@ -13,4 +13,4 @@ The team owns trade booking: turning an order fill into a validated trade record
 
 ### Skills you can pull
 
-- `equities-trade-capture-trade-id-format`: the trade ID format and its validation rules.
+- `equities-trade-capture-trade-id-format` (`.github/skills/equities-trade-capture-trade-id-format/SKILL.md`): the trade ID format and its validation rules.

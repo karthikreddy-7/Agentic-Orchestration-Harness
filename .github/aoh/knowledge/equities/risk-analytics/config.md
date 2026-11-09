@@ -13,4 +13,4 @@ The team owns position exposure and limit calculations.
 
 ### Skills you can pull
 
-- `equities-risk-analytics-exposure-rules`: how exposure is computed and how limits are checked.
+- `equities-risk-analytics-exposure-rules` (`.github/skills/equities-risk-analytics-exposure-rules/SKILL.md`): how exposure is computed and how limits are checked.

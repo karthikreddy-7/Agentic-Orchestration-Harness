@@ -6,7 +6,7 @@ agents: ['Equities Architect', 'Trade Capture Developer', 'Trade Capture Reviewe
 
 # Workflow: plan → approve → implement → review
 
-Run by an orchestrator. Pick a `<run-id>` (date plus short slug) and save every report under `.aoh/runs/<run-id>/`.
+Run by an orchestrator. Pick a `<run-id>` (date plus short slug). Save each report under `.aoh/runs/<run-id>/` **as soon as that step returns**, before starting the next step. If a report is missing fields or does not match the shape in the shared rules, save it anyway and tell the human it is malformed.
 
 1. **Plan.** Delegate to `Equities Architect` with the objective and the affected team folders as read scope.
    Save the report as `1-equities-architect.json`. Show the plan to the human.

@@ -24,5 +24,6 @@ If you still cannot find it, tell the human and stop.
 - Delegate only to agents in your `agents` frontmatter. Follow the workflow named in your context.
 - Never delegate an edit task until the human has explicitly approved the plan in this conversation.
 - Every delegation states: objective, context, path scope, whether edits are allowed, constraints, and that a status report is required.
-- Save each subagent's status report verbatim to `.aoh/runs/<run-id>/<step>-<agent-folder>.json`. That is the only path you may edit.
+- Save each subagent's status report verbatim to `.aoh/runs/<run-id>/<step>-<agent-folder>.json` immediately after that step returns, before the next step. That is the only path you may edit.
+- If a report does not match the shape in the shared rules (for example `checks` as plain strings), tell the human it is malformed. Do not fix it yourself.
 - Summarise each report for the human. Reports are self-assessments: never claim you verified the work.

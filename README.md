@@ -216,7 +216,7 @@ The core (agents, knowledge push, status contract, approval gate) needs no exter
 
 ## Limits and open problems
 
-- **Hooks depend on the harness.** The context hooks use Copilot's `subagentStart` event and agent-scoped `sessionStart` hooks; behaviour may differ between the Copilot and Local harnesses. Hook failures and timeouts are fail-open, so an agent can run without its context. The orchestrator's instructions tell it to stop if a subagent reports missing context.
+- **Hooks depend on the harness.** The context hooks use Copilot's `subagentStart` event and agent-scoped `sessionStart` hooks; behaviour may differ between the Copilot and Local harnesses. Hook failures and timeouts are fail-open, so an agent can run without its context. The orchestrator's instructions tell it to stop if a subagent reports missing context. Turn on `features.hook_trace` and check `.aoh/logs/hook-trace.log` to see whether they fire in your setup.
 - **Reports are self-assessed.** The schema checks a report's shape, not whether it is true.
 - **No evals yet.** There is no automated way to measure whether the agents do the right thing. That is the main gap.
 

@@ -11,4 +11,4 @@ All Equities work follows `.github/aoh/knowledge/equities/workflows/plan-approve
 
 ### Skills you can pull
 
-- `equities-trade-lifecycle`: trade states and allowed transitions.
+- `equities-trade-lifecycle` (`.github/skills/equities-trade-lifecycle/SKILL.md`): trade states and allowed transitions.

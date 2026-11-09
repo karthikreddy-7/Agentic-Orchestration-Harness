@@ -19,4 +19,5 @@ npm run context -- "Trade Capture Developer"
 
 - Hooks need a trusted workspace. In the Local harness they also need `chat.useHooks`.
 - Hook failures and timeouts are **fail-open**: the agent runs without its context. Every agent's instructions therefore say to load the chain itself if the `# AOH context for …` block is missing.
-- The hook reads only files under `.github/aoh/knowledge/`. It writes nothing and logs nothing.
+- The hook reads only files under `.github/aoh/knowledge/`.
+- **Trace (`features.hook_trace` in `aoh.yaml`, on in the example):** each firing appends one line to `.aoh/logs/hook-trace.log` with the time, event, agent name and number of config files injected. It never logs prompts or file contents. Use it to confirm hooks actually fire; set it to `false` to turn it off.

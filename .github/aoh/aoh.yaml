@@ -15,3 +15,4 @@ runs_dir: .aoh/runs
 features:
   persistent_memory: false # would use .aoh/memory/
   external_mcp: false      # would use .vscode/mcp.json and tools: ['<server>/*']
+  hook_trace: true         # log each hook firing (agent + files injected, no content) to .aoh/logs/hook-trace.log
