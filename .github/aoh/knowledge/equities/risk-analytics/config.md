@@ -4,6 +4,7 @@ The team owns position exposure and limit calculations.
 
 - **Write scope:** `examples/equities/risk-analytics/**`
 - **Test command:** `npm test`
+- Code is plain modern JavaScript: ES modules (`.mjs`), Node 22+. Keep functions small and pure.
 - Every exported function has tests in the matching `*.test.mjs` file (`node:test`, `node:assert/strict`).
 - Calculations are pure functions: no I/O, no clock, no globals.
 - Do not:

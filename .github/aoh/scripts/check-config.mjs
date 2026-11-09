@@ -110,7 +110,9 @@ for (const { file, text, fm } of agents) {
   else if (!existsSync(join(found[0], 'config.md'))) problems.push(`${rel(found[0])}: missing config.md`);
 }
 
-if (!existsSync(join(knowledgeRoot, 'config.md'))) problems.push('.github/aoh/knowledge/config.md (shared layer) is missing');
+if (!existsSync(join(knowledgeRoot, 'shared/config.md'))) problems.push('.github/aoh/knowledge/shared/config.md (shared layer) is missing');
+if (existsSync(join(knowledgeRoot, 'config.md'))) problems.push('.github/aoh/knowledge/config.md is not loaded; move shared rules to knowledge/shared/config.md');
+if (names.has('Shared') || agents.some((a) => a.fm && agentFolderName(a.fm.name ?? '') === 'shared')) problems.push('no agent may be named "Shared" (reserved for knowledge/shared/)');
 
 // ---- workflows ----
 for (const wf of walk(knowledgeRoot, (f) => f.endsWith('.md') && f !== 'config.md' && f !== 'README.md')) {

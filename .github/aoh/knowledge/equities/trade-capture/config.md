@@ -4,6 +4,7 @@ The team owns trade booking: turning an order fill into a validated trade record
 
 - **Write scope:** `examples/equities/trade-capture/**`
 - **Test command:** `npm test`
+- Code is plain modern JavaScript: ES modules (`.mjs`), Node 22+. Keep functions small and pure.
 - Every exported function has tests in the matching `*.test.mjs` file (`node:test`, `node:assert/strict`).
 - Validate inputs at the boundary and return clear results; do not throw for ordinary invalid input.
 - Do not:

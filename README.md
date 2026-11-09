@@ -31,7 +31,7 @@ One Copilot agent doing everything loses context and overreaches. AOH splits the
 
   sessionStart (agent-scoped hook) ──► orchestrator's own config.md chain
   subagentStart hook ──► invoked subagent's config.md chain:
-      knowledge/config.md → equities/config.md → equities/<team>/config.md → <agent>/config.md
+      shared/config.md → equities/config.md → equities/<team>/config.md → <agent>/config.md
 
   Each subagent ──► JSON status report ──► .aoh/runs/<run-id>/ ──► npm run validate-reports
 ```
@@ -54,7 +54,7 @@ Team orchestrators and the Equities Orchestrator are peers that share the same s
 
 | Location | What lives there | Committed |
 |---|---|---|
-| `.github/` | What VS Code discovers itself: agents, skills, instructions, hooks | yes |
+| `.github/` | What VS Code discovers itself: agents, skills, hooks | yes |
 | `.github/aoh/` | The framework: config, knowledge tree, schema, scripts, templates | yes |
 | `.aoh/` | Runtime output: run reports, logs, local state | no (gitignored) |
 
@@ -72,19 +72,16 @@ Team orchestrators and the Equities Orchestrator are peers that share the same s
 │   ├── trade-capture-reviewer.agent.md
 │   ├── risk-analytics-developer.agent.md
 │   └── risk-analytics-reviewer.agent.md
-├── skills/                                  # pulled on demand, named by layer
-│   ├── aoh-status-report/SKILL.md           # shared
+├── skills/                                  # PULLED: reference manuals, named by layer
 │   ├── equities-<topic>/SKILL.md            # division
 │   └── equities-trade-capture-<topic>/SKILL.md   # team
-├── instructions/                            # applyTo path-scoped coding rules
-│   └── <area>.instructions.md
 ├── hooks/
 │   ├── aoh-context.json                     # registers the context hooks
 │   └── aoh-context.mjs                      # loads the config.md chain
 └── aoh/
     ├── aoh.yaml                             # project identity, runs dir, extension points
     ├── knowledge/                           # PUSHED: layered rules, one config.md per layer
-    │   ├── config.md                        # shared: every agent
+    │   ├── shared/config.md                 # every agent: rules, output contract, resume
     │   └── equities/
     │       ├── config.md                    # division rules, regulations, workflows
     │       ├── workflows/                   # division workflows
@@ -118,11 +115,13 @@ Agent files stay generic: a role, tools, and who they may call. Everything speci
 
 1. A subagent is invoked. The `subagentStart` hook receives its `agentName`, for example `Trade Capture Developer`.
 2. The hook converts the name to a folder name (`trade-capture-developer`) and finds that folder anywhere under `.github/aoh/knowledge/`.
-3. It walks from the knowledge root down to that folder and concatenates every `config.md` on the way:
-   `knowledge/config.md` → `equities/config.md` → `equities/trade-capture/config.md` → `equities/trade-capture/trade-capture-developer/config.md`
+3. It starts with `shared/config.md`, then walks from the top of the tree down to that folder and concatenates every `config.md` on the way:
+   `shared/config.md` → `equities/config.md` → `equities/trade-capture/config.md` → `equities/trade-capture/trade-capture-developer/config.md`
 4. It returns the result as `additionalContext`, which Copilot prepends to the subagent's first message.
 
 Orchestrators are different: they are the agent the user selected, and the `sessionStart` event does not say which agent that is. So each orchestrator declares its own **agent-scoped** `sessionStart` hook in its frontmatter and passes its own name to the same loader, which then injects its chain. For example, the Trade Capture Orchestrator gets shared + Equities + Trade Capture + its own config. Agent-scoped hooks run only while that agent is selected. If the host does not fire them, the orchestrator's first instruction is to load its own config chain itself.
+
+`shared/` is reserved: it is always loaded first and is never an agent folder. It holds everything common to all agents: shared rules, the status report contract, and how to resume an unfinished run.
 
 **There is no registry.** An agent's division and team are wherever its folder sits in the tree. Moving an agent to another team means moving its folder.
 
@@ -130,11 +129,11 @@ Keep each `config.md` short. It is injected every time, so it costs context on e
 
 ### Pull: skills by layer (on demand)
 
-Detailed material such as procedures, reference tables and long checklists goes into skills, which an agent loads only when the task matches the skill's description. Skills are named by layer so the taxonomy stays visible in the flat `.github/skills/` folder:
+Skills are reference manuals: formats, lookup tables, procedures, long checklists. Nothing an agent *must* always follow belongs here; that is knowledge. Skills are content an agent loads only when the task needs it. Skills are named by layer so the taxonomy stays visible in the flat `.github/skills/` folder:
 
 | Layer | Skill name pattern | Example |
 |---|---|---|
-| shared | `aoh-<topic>` | `aoh-status-report` |
+| shared | `aoh-<topic>` | (none in the example) |
 | division | `<division>-<topic>` | `equities-trade-lifecycle` |
 | team | `<division>-<team>-<topic>` | `equities-trade-capture-booking-checks` |
 
@@ -153,9 +152,9 @@ Each layer's `config.md` names the skills relevant to that layer, so an agent kn
   | Architect, Reviewers | `read`, `search` |
   | Developers | `read`, `search`, `edit`, `execute` (execute only for named test commands) |
 
-- **Scoped edits.** Each team's `config.md` declares its write scope; developers edit only inside it, and orchestrators never delegate edits outside it. `applyTo` instruction files add coding rules when an agent works on matching paths.
+- **Scoped edits.** Each team's `config.md` declares its write scope; developers edit only inside it, and orchestrators never delegate edits outside it.
 - **Human approval gate.** The orchestrator never delegates an edit until the human has explicitly approved the plan.
-- **Folder names are not security boundaries.** Instructions, config files and folder layout guide agents; they do not enforce anything. Real limits come from the tools an agent is given and the host's approval prompts.
+- **Folder names are not security boundaries.** Config files, skills and folder layout guide agents; they do not enforce anything. Real limits come from the tools an agent is given and the host's approval prompts.
 
 ### The status contract
 
@@ -175,6 +174,10 @@ Every subagent ends its reply with one fenced `json` block matching `.github/aoh
 ```
 
 `status` is one of `completed`, `partial`, `blocked` or `failed`. The orchestrator saves each report to `.aoh/runs/<run-id>/`, and `npm run validate-reports -- .aoh/runs/<run-id>` checks them. Reports are self-assessments: the orchestrator summarises them for the human and does not claim to have verified the work.
+
+### Resuming a run
+
+Each finished step leaves a numbered report in `.aoh/runs/<run-id>/`, so the reports are also the run's progress record. When an orchestrator starts a session it lists `.aoh/runs/`. If a run stopped early (its last report isn't the final step, or its last status isn't `completed`), it tells you where the run stopped and offers to resume from the next step or start fresh. A resumed run asks for approval again before any edit step, and the next subagent is given the earlier reports to build on.
 
 ## Quickstart
 

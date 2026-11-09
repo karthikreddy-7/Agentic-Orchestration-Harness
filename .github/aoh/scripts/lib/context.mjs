@@ -11,26 +11,32 @@ export function agentFolderName(agentName) {
   return String(agentName).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+// knowledge/shared/ holds what every agent gets (rules, output contract, resume).
+// It is a layer, never an agent folder.
+export const SHARED_DIR = 'shared';
+
 // All folders under the knowledge root that are named `folderName`.
 export function findAgentFolders(knowledgeRoot, folderName) {
   const found = [];
-  const walk = (dir) => {
+  const walk = (dir, top) => {
     for (const entry of readdirSync(dir)) {
       const full = join(dir, entry);
-      if (!statSync(full).isDirectory()) continue;
+      if (!statSync(full).isDirectory() || (top && entry === SHARED_DIR)) continue;
       if (entry === folderName) found.push(full);
-      walk(full);
+      walk(full, false);
     }
   };
-  if (existsSync(knowledgeRoot)) walk(knowledgeRoot);
+  if (existsSync(knowledgeRoot)) walk(knowledgeRoot, true);
   return found;
 }
 
-// The config.md files from the root down to `agentDir`, in injection order.
+// shared/config.md, then each config.md from the top-level folder down to
+// `agentDir`, in injection order.
 export function configChain(knowledgeRoot, agentDir) {
   const parts = relative(knowledgeRoot, agentDir).split(sep).filter(Boolean);
-  const dirs = [knowledgeRoot];
-  for (const p of parts) dirs.push(join(dirs.at(-1), p));
+  const dirs = [join(knowledgeRoot, SHARED_DIR)];
+  let dir = knowledgeRoot;
+  for (const p of parts) dirs.push((dir = join(dir, p)));
   return dirs.map((d) => join(d, 'config.md')).filter((f) => existsSync(f));
 }
 
