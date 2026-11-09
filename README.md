@@ -1,123 +1,250 @@
 # Agentic Orchestration Harness (AOH)
 
-**AOH** is a project-agnostic orchestration convention and optional tooling layer for VS Code agent workspaces. Install it in the workspace repository's `.github/` directory so that its agent customizations and framework assets travel with the project. AOH can be used with a single agent in a small repository or extended with team-specific agents and workflows in a larger organization.
+**AOH** is a copyable harness for VS Code / GitHub Copilot custom agents. Each team talks to its own team orchestrator; cross-team work goes to a division orchestrator. Orchestrators delegate bounded tasks to generic subagents. Each agent's rules come from a **layered knowledge tree** (shared → division → team → agent) that a hook pushes in automatically, plus **layered skills** that agents pull only when they need them. Every subagent returns a schema-checked status report, and a human approves before anything is edited.
 
-The names **Platform**, **Frontend**, and **Backend** are examples only. AOH does not require a platform/team hierarchy, a particular source-tree layout, or any particular business domain.
+> The example organisation (an **Equities** division with **Trade Capture** and **Risk Analytics** teams) is fictional. Replace it with your own; AOH does not depend on any business domain.
 
-## Design Principles
+## Why
 
-- **Portable by default:** Keep workspace agent, skill, instruction, and hook files in the VS Code-supported `.github/` locations; keep AOH-owned assets under `.github/aoh/`.
-- **Layered, not hierarchical by default:** Start with one orchestrator and add team or specialist agents only when their responsibilities, tools, or context need to differ.
-- **One source of truth:** Agent behavior belongs in agent definitions, reusable procedures in skills, path-scoped rules in instructions, and executable workflow definitions in AOH's workflow catalog. Avoid duplicating these in a second registry.
-- **Project-aware, not project-invasive:** AOH should not impose a layout on application source code. Workflows and scripts operate on the repository's existing paths.
-- **Runtime-aware:** VS Code customization surfaces do not have identical capabilities in every agent runtime. In particular, lifecycle hooks and their available event data depend on the active harness; hooks are optional integrations, not a portable enforcement or telemetry guarantee.
-- **Safe state handling:** Separate committed policy and configuration from generated run state. Do not collect full prompts, tool arguments, outputs, secrets, or personal data by default.
-- **Least privilege:** Use agent tool declarations and available runtime approvals to reduce risk. Agent names, prompt instructions, skills, and folder ownership conventions are not security boundaries.
+One Copilot agent doing everything loses context and overreaches. AOH splits the work:
 
-## Proposed Architecture
+- **Bounded agents:** each subagent has one role, the fewest tools that role needs, and an explicit list of who it may call.
+- **Right context, not all context:** an agent receives only the rules of the layers it belongs to, and loads detailed material on demand.
+- **Structured returns:** every subagent ends with the same JSON status report, so results can be checked, not just read.
+- **Human in the loop:** plans are approved before edits; results are accepted or rejected by a person.
 
-AOH has three concerns with explicit boundaries:
-
-1. **VS Code customization surface (`.github/`):** Native workspace discovery for custom agents, skills, instructions, and optional hooks. This is the user-facing integration layer.
-2. **AOH framework (`.github/aoh/`):** Project-level AOH configuration, reusable workflow definitions, schemas, templates, validation utilities, and runtime adapters. All framework-owned, committed assets live here.
-3. **Workspace runtime data (`.aoh/`):** Generated run state, local logs, caches, and optional workspace memory. This directory is runtime output, not framework installation; ignore it by default and apply explicit retention and data-handling rules.
-
-The application repository remains the project layer and keeps its existing source, tests, build system, and CI layout. AOH references those paths rather than moving or mirroring them.
-
-### Proposed Folder Structure
+## Architecture
 
 ```text
-<workspace-repo>/
-├── .github/
-│   ├── copilot-instructions.md          # Short, repository-wide agent guidance
-│   ├── agents/                           # VS Code-discovered; keep definitions flat
-│   │   ├── aoh-orchestrator.agent.md     # The only user-facing AOH agent
-│   │   ├── platform-<specialist>.subagent.md  # org-level specialist
-│   │   ├── frontend-<specialist>.subagent.md
-│   │   └── backend-<specialist>.subagent.md
-│   ├── skills/                           # VS Code-discovered skill directories
-│   │   ├── aoh-workflow/                 # Optional shared skill
-│   │   │   └── SKILL.md
-│   │   └── <capability-name>/
-│   │       ├── SKILL.md
-│   │       ├── scripts/                  # Optional: helpers used only by this skill
-│   │       └── resources/                # Optional: skill-specific references/templates
-│   ├── instructions/                     # Auto-applied rules selected by file path
-│   │   ├── security.instructions.md      # Example: security rules for matching files
-│   │   └── <area>.instructions.md        # Example: area-specific coding conventions
-│   ├── hooks/                            # Optional; harness-dependent integration
-│   │   └── aoh-hooks.json
-│   └── aoh/                              # AOH-owned, committed framework assets
-│       ├── aoh.yaml                      # Project identity and feature switches
-│       ├── schemas/
-│       ├── workflows/
-│       │   ├── shared/                   # Workflows usable across the project
-│       │   ├── platform/                      # Optional platform-owned workflows
-│       │   ├── frontend/                    # Optional team-owned workflows
-│       │   └── backend/
-│       ├── scripts/                      # AOH-wide utilities, validators, adapters
-│       ├── templates/
-│       └── knowledge/                    # Curated, reviewed, versioned project knowledge
-├── .aoh/                                 # Generated/local state; add to .gitignore
-│   ├── state/
-│   ├── runs/
-│   ├── logs/
-│   └── memory/                           # Optional; exclude sensitive or transient data
-├── .vscode/                              # Optional workspace settings and MCP config
-│   └── mcp.json
-├── src/                                  # Existing project layout; not prescribed by AOH
-└── tests/
+  User-facing orchestrators (pick one in the agent picker)
+  ┌────────────────────────────┐ ┌─────────────────────────┐ ┌──────────────────────────────┐
+  │ Trade Capture Orchestrator │ │ Equities Orchestrator   │ │ Risk Analytics Orchestrator  │
+  │ day-to-day team work       │ │ cross-team work only    │ │ day-to-day team work         │
+  └──────┬─────────────────────┘ └──────┬──────────────────┘ └──────┬───────────────────────┘
+         │ agents: allow-list           │                           │
+         ▼                              ▼                           ▼
+   Equities Architect ◄─────────── all three may call it ──────────►
+   Trade Capture Developer ◄── TC + Equities        Risk Analytics Developer ◄── RA + Equities
+   Trade Capture Reviewer  ◄── TC + Equities        Risk Analytics Reviewer  ◄── RA + Equities
+
+  Flat: orchestrators call subagents; subagents call nobody (one level of nesting).
+
+  sessionStart (agent-scoped hook) ──► orchestrator's own config.md chain
+  subagentStart hook ──► invoked subagent's config.md chain:
+      shared/config.md → equities/config.md → equities/<team>/config.md → <agent>/config.md
+
+  Each subagent ──► JSON status report ──► .aoh/runs/<run-id>/ ──► npm run validate-reports
 ```
 
-Do not put AOH agent definitions under `.github/aoh/agents/`: VS Code workspace agents are discovered from `.github/agents/`. Likewise, keep skill directories directly under `.github/skills/`, scoped instruction files under `.github/instructions/`, and optional hook configuration under `.github/hooks/`. Keep every AOH workflow—shared, platform-owned, or team-owned—under `.github/aoh/workflows/`, grouped by ownership there; do not create a second team-workflow tree. Reserve `.github/workflows/` for GitHub Actions.
+### Which orchestrator to use
 
-### Layer Responsibilities
-
-| Layer | Owns | Does not imply |
+| Work | Talk to | It may call |
 |---|---|---|
-| Workspace agents | Roles, allowed delegation targets, tool declarations, handoffs | Isolation or authorization enforced by directory ownership |
-| Skills | Reusable task procedures and supporting resources | A private skill namespace or a substitute for tool permissions |
-| Instructions | Repository-wide guidance and rules auto-applied to files matched by `applyTo` | A workflow engine or deterministic policy enforcement |
-| `.github/aoh/` | AOH config, workflow definitions, schemas, templates, validators, adapters | VS Code-native discovery for arbitrary AOH files |
-| `.aoh/` | Generated run state, logs, caches, optional local memory | A committed or automatically synchronized knowledge base |
-| Project source tree | Existing application and team-owned source/tests | A prescribed AOH directory structure |
+| Inside one team (most work) | that team's orchestrator | Equities Architect, its own team's Developer and Reviewer |
+| Across teams | Equities Orchestrator | Equities Architect, every team's Developer and Reviewer |
 
-## Operating Model
+The hierarchy is **flat on purpose**. The Equities Orchestrator calls team subagents directly instead of calling team orchestrators, because:
 
-- **One orchestrator, many subagents:** AOH defines one user-facing orchestrator. All specialists are subagents, not additional orchestrators or user-facing agents. Use org-wide `platform-<specialist>.subagent.md` and team-specific `frontend-<specialist>.subagent.md` / `backend-<specialist>.subagent.md` definitions as needed.
-- **Configure every delegation edge at the caller:** The orchestrator lists only its direct subagents in its `agents` frontmatter. A subagent that needs to delegate lists its own allowed child subagents in its own `agents` frontmatter and includes the `agent` tool. A nested subagent is invocable only when the immediate caller explicitly lists it; do not rely on a global registry or implicit transitive access. Use `agents: []` for a leaf subagent that cannot delegate.
-- **Delegate with a bounded task:** The orchestrator invokes a configured subagent through the runtime's agent/subagent tool, passing the objective, relevant context, permitted file or path scope, constraints, and expected result format. This is an internal delegation: the child performs its assigned work and returns its result to the caller; it is not a user-facing handoff.
-- **Subagents may make scoped repository changes:** A subagent can be configured with edit tools and instructions to change exactly one file, a named set of files, or a bounded path. Read-only subagents should not receive edit tools. Each task must say whether edits are allowed, list the intended scope, and require the subagent to report any out-of-scope changes or blockers rather than silently expanding scope. Since agents can share the workspace, avoid concurrent assignments that write the same files.
-- **Require a structured completion report:** Every subagent returns a concise status block to its caller, whether it edited files or only analyzed them. At minimum report `status` (`completed`, `partial`, `blocked`, or `failed`), a result summary, files changed (or `none`), checks run and outcomes (or `not run`), blockers/risks, and a self-assessed confidence score with a short rationale. Include useful available metrics such as elapsed time or test counts, but do not invent unavailable values. Confidence and agent-reported checks are informational, not independent proof of correctness.
-- **Orchestrator routes the result to the human:** The orchestrator summarizes the returned status, changes, checks, confidence, and unresolved risks, then asks the human whether to accept the work or approve the next workflow step. Per this AOH operating model, it does not independently re-review the implementation or claim to verify its quality by manually inspecting the subagent's changes. If the report is incomplete or blocked, it reports that plainly and asks how to proceed instead of presenting the work as successful.
-- **Approval is an explicit workflow decision:** Human approval means accepting the reported result or authorizing the next stage. It does not roll back already-written workspace changes, prove correctness, or replace any separate approval mechanism required before a risky tool action. If edits must not happen before approval, the workflow must use a separate planning/approval stage before delegating implementation.
-- **Keep subagents out of the user-facing picker:** Set `user-invocable: false` on every subagent. Keep `disable-model-invocation: false` (or omit it, since the default is `false`) when callers must invoke that subagent. Visibility and invocability are separate controls.
-- **Bound nested delegation:** Define only the caller-to-child relationships needed for a task. In VS Code's Local harness, subagents cannot invoke further subagents by default; enable `chat.subagents.allowInvocationsFromSubagents` for nested delegation. Local nesting is limited to five levels. Verify equivalent behavior and limits in other harnesses, avoid cycles and unnecessary depth, and require each parent to summarize child results and remain accountable for its final output.
-- **Use handoffs for user-directed transitions:** A handoff changes the active user-facing agent; it is distinct from an orchestrator invoking a subagent to complete its own task.
-- **Use scoped instructions for file-based rules:** Put rules that should automatically accompany work on particular files in `.github/instructions/*.instructions.md` and define an `applyTo` glob, such as `src/api/**`. This is for path-based coding conventions (for example, API security rules), not agent identity, task procedures, or access control. Put short rules that apply to all work in `.github/copilot-instructions.md`.
-- **Keep ownership organizational:** Prefixes, descriptions, and team folders help people navigate the setup, but workspace skills may be available across the workspace and agent declarations are not an access-control mechanism.
-- **Keep hook integrations optional:** Local lifecycle hooks may provide useful event handling, but do not assume they run in Agent Host sessions or expose complete prompts, model context, or exact token usage. Core workflows must remain usable without hooks.
-- **Keep state out of source control by default:** Add `.aoh/` to the repository's `.gitignore`. Commit only reviewed, non-sensitive reference knowledge under `.github/aoh/knowledge/`. Define retention, redaction, and access before enabling persistent memory or audit logging.
-- **Use MCP only when needed:** A project may configure an MCP server for external state or domain tools in `.vscode/mcp.json` (or an organization-managed location). Do not require an MCP server for the baseline AOH architecture.
-- **Validate rather than assume:** Provide schema and configuration validation for AOH-owned manifests; test native customization discovery and optional hooks in the VS Code versions and runtimes the project intends to support.
+- a subagent cannot talk to the human, so a team orchestrator running as a subagent could not stop for plan approval;
+- nested subagents need `chat.subagents.allowInvocationsFromSubagents` turned on for every user.
 
-## Naming and Configuration Conventions
+Team orchestrators and the Equities Orchestrator are peers that share the same specialists. Team-level context still reaches those specialists, because their `config.md` chain includes their team.
 
-- **Orchestrator:** Keep the sole user-facing AOH orchestrator in `.github/agents/aoh-orchestrator.agent.md`.
-- **Subagents:** Name platform specialists `.github/agents/platform-<specialist>.subagent.md` and team specialists `.github/agents/frontend-<specialist>.subagent.md` or `.github/agents/backend-<specialist>.subagent.md`. Give each a stable frontmatter `name`, set `user-invocable: false`, and declare child subagents only in that caller's `agents` list. VS Code's canonical custom-agent suffix is `.agent.md`; current VS Code documentation also says it detects any `.md` file in `.github/agents/`, allowing AOH to use `.subagent.md` as a naming convention. If targeting another host, verify that it discovers this suffix or use `.agent.md` filenames while retaining the subagent role in frontmatter.
-- **Skills and helper scripts:** Put each skill in `.github/skills/<skill-name>/SKILL.md`. Set the required `name` to match the directory name and provide a clear `description` that explains when to use it. Put scripts and other resources used only by that skill under its directory (for example, `.github/skills/<skill-name>/scripts/` or `resources/`) and reference them from `SKILL.md`. Put shared AOH utilities—such as manifest validators or runtime adapters—under `.github/aoh/scripts/`. Put product/application scripts in the project's normal source layout, not in AOH.
-- **Instructions:** Keep `.github/copilot-instructions.md` concise. Put focused rules in `.github/instructions/*.instructions.md` and use `applyTo` patterns when they should apply only to specific project paths.
-- **AOH configuration:** Keep project identity, enabled features, and references to workflows in `.github/aoh/aoh.yaml`. Do not duplicate agent definitions or delegation allow-lists in a separate registry unless a concrete integration requires a generated index.
-- **Delegation reports:** Define the required status-block fields in the orchestrator/subagent instructions or a shared skill, and keep the same contract at every nested delegation boundary. Treat self-reported confidence and metrics as estimates; label missing checks as `not run`, not as passing.
-- **Workflows:** Put all reusable workflow definitions under `.github/aoh/workflows/`. Group them in `shared/` or by owner (for example `platform/`, `frontend/`, `backend/`); these are organizational subfolders of one workflow catalog, not separate registries. Team workflows belong here too—there is no parallel `.github/aoh/teams/<team>/workflows/` tree.
-- **Paths:** Use workspace-relative paths and forward slashes in configuration intended to work across Windows, macOS, and Linux. Resolve paths from the workspace root in executable tooling rather than assuming the process working directory.
-- **Generated files:** Keep local run outputs under `.aoh/`, not alongside committed definitions. Never store secrets in agent prompts, skills, instructions, registries, or workflow files.
+### Three locations
 
-## Adoption Path
+| Location | What lives there | Committed |
+|---|---|---|
+| `.github/` | What VS Code discovers itself: agents, skills, hooks | yes |
+| `.github/aoh/` | The framework: config, knowledge tree, schema, scripts, templates | yes |
+| `.aoh/` | Runtime output: run reports, logs, local state | no (gitignored) |
 
-1. Add the minimal `.github/agents/`, `.github/skills/`, `.github/instructions/`, and `.github/aoh/` structure to the target repository.
-2. Define only the project-specific identity and enabled features in `.github/aoh/aoh.yaml`; begin without teams, hooks, external memory, or mandatory MCP services.
-3. Add the single user-facing orchestrator and explicitly scope its tools and direct subagents. Add specialist subagents only for distinct responsibilities; configure any nested delegation in each immediate caller's own definition.
-4. Add reusable procedures as skills and project workflows under `.github/aoh/workflows/`; refer to existing source and test paths.
-5. Add `.aoh/` to `.gitignore`. If runtime persistence, telemetry, or hooks are later enabled, document supported runtimes, data captured, retention, and redaction first.
-6. Validate agent/skill discovery, workflow references, path portability, and any optional runtime integrations before adopting AOH across repositories.
+### Folder structure
+
+```text
+.github/
+├── copilot-instructions.md                  # short, repo-wide rules
+├── agents/                                  # generic role definitions, kept flat
+│   ├── equities-orchestrator.agent.md       # user-facing, cross-team work
+│   ├── trade-capture-orchestrator.agent.md  # user-facing, team work
+│   ├── risk-analytics-orchestrator.agent.md # user-facing, team work
+│   ├── equities-architect.agent.md
+│   ├── trade-capture-developer.agent.md
+│   ├── trade-capture-reviewer.agent.md
+│   ├── risk-analytics-developer.agent.md
+│   └── risk-analytics-reviewer.agent.md
+├── skills/                                  # PULLED: reference manuals, named by layer
+│   ├── equities-trade-lifecycle/SKILL.md                 # division
+│   ├── equities-trade-capture-trade-id-format/SKILL.md   # team
+│   └── equities-risk-analytics-exposure-rules/SKILL.md   # team
+├── hooks/
+│   ├── aoh-context.json                     # registers the subagentStart hook
+│   ├── aoh-context.mjs                      # loads the config.md chain (+ optional trace)
+│   └── README.md
+└── aoh/
+    ├── aoh.yaml                             # project identity, runs dir, features
+    ├── knowledge/                           # PUSHED: layered rules, one config.md per layer
+    │   ├── README.md
+    │   ├── shared/config.md                 # every agent: rules, output contract, resume
+    │   └── equities/
+    │       ├── config.md                    # division rules, regulations, workflows
+    │       ├── workflows/plan-approve-implement-review.md
+    │       ├── equities-orchestrator/config.md
+    │       ├── equities-architect/config.md
+    │       ├── trade-capture/
+    │       │   ├── config.md                # team rules, dos and don'ts
+    │       │   ├── trade-capture-orchestrator/config.md
+    │       │   ├── trade-capture-developer/config.md
+    │       │   └── trade-capture-reviewer/config.md
+    │       └── risk-analytics/
+    │           ├── config.md
+    │           ├── risk-analytics-orchestrator/config.md
+    │           ├── risk-analytics-developer/config.md
+    │           └── risk-analytics-reviewer/config.md
+    ├── schemas/
+    │   ├── subagent-result.schema.json      # the status contract
+    │   └── examples/                        # one valid and one invalid report, used by npm run check
+    ├── scripts/
+    │   ├── check-config.mjs                 # npm run check
+    │   ├── validate-report.mjs              # npm run validate-reports
+    │   └── lib/                             # context loader, mini schema validator
+    └── templates/                           # orchestrator, subagent and config.md templates
+.aoh/                                        # gitignored runtime output
+├── runs/<run-id>/*.json                     # status reports, one per finished step
+└── logs/hook-trace.log                      # hook firings (when features.hook_trace is on)
+examples/equities/
+├── trade-capture/trades.mjs (+ test)        # quickstart target
+└── risk-analytics/exposure.mjs (+ test)
+package.json                                 # npm scripts; no dependencies
+```
+
+## How context reaches an agent
+
+AOH separates **what an agent must always know** from **what it may need**.
+
+### Push: hooks inject the config chain (mandatory)
+
+Agent files stay generic: a role, tools, and who they may call. Everything specific to the division, team or agent lives in `config.md` files, which hold rules, regulations, workflows, and dos and don'ts.
+
+1. A subagent is invoked. The `subagentStart` hook receives its `agentName`, for example `Trade Capture Developer`.
+2. The hook converts the name to a folder name (`trade-capture-developer`) and finds that folder anywhere under `.github/aoh/knowledge/`.
+3. It starts with `shared/config.md`, then walks from the top of the tree down to that folder and concatenates every `config.md` on the way:
+   `shared/config.md` → `equities/config.md` → `equities/trade-capture/config.md` → `equities/trade-capture/trade-capture-developer/config.md`
+4. It returns the result as `additionalContext`, which Copilot prepends to the subagent's first message.
+
+Orchestrators are different: they are the agent the user selected, and the `sessionStart` event does not say which agent that is. So each orchestrator declares its own **agent-scoped** `sessionStart` hook in its frontmatter and passes its own name to the same loader, which then injects its chain. For example, the Trade Capture Orchestrator gets shared + Equities + Trade Capture + its own config. Agent-scoped hooks run only while that agent is selected. If the host does not fire them, the orchestrator's first instruction is to load its own config chain itself.
+
+`shared/` is reserved: it is always loaded first and is never an agent folder. It holds everything common to all agents: shared rules, the status report contract, and how to resume an unfinished run.
+
+**There is no registry.** An agent's division and team are wherever its folder sits in the tree. Moving an agent to another team means moving its folder.
+
+Keep each `config.md` short. It is injected every time, so it costs context on every call.
+
+### Pull: skills by layer (on demand)
+
+Skills are reference manuals: formats, lookup tables, procedures, long checklists. Nothing an agent *must* always follow belongs here; that is knowledge. Skills are content an agent loads only when the task needs it. Skills are named by layer so the taxonomy stays visible in the flat `.github/skills/` folder:
+
+| Layer | Skill name pattern | Example |
+|---|---|---|
+| shared | `aoh-<topic>` | (none in the example) |
+| division | `<division>-<topic>` | `equities-trade-lifecycle` |
+| team | `<division>-<team>-<topic>` | `equities-trade-capture-trade-id-format` |
+
+Each layer's `config.md` names the skills relevant to that layer, so an agent knows what it can pull without having it all injected.
+
+## Operating model
+
+- **Orchestrators face users; subagents don't.** Only `*-orchestrator` agents appear in the agent picker. Every subagent sets `user-invocable: false`.
+- **Routing at the caller.** Each agent's `agents:` frontmatter is an explicit allow-list of the agents it may call. Leaf agents use `agents: []`. Names are case-sensitive. Never use `['*']`.
+- **Nesting is capped.** VS Code subagents cannot call further subagents unless `chat.subagents.allowInvocationsFromSubagents` is on, and depth is limited to five. AOH uses one level: orchestrators call specialists, and specialists call nobody.
+- **Least-privilege tools.**
+
+  | Agent | Tools |
+  |---|---|
+  | Orchestrators (team and division) | `agent`, `read`, `search`, `edit` (edit only to save reports under `.aoh/runs/`) |
+  | Architect, Reviewers | `read`, `search` |
+  | Developers | `read`, `search`, `edit`, `execute` (execute only for named test commands) |
+
+- **Scoped edits.** Each team's `config.md` declares its write scope; developers edit only inside it, and orchestrators never delegate edits outside it.
+- **Human approval gate.** The orchestrator never delegates an edit until the human has explicitly approved the plan.
+- **Folder names are not security boundaries.** Config files, skills and folder layout guide agents; they do not enforce anything. Real limits come from the tools an agent is given and the host's approval prompts.
+
+### The status contract
+
+Every subagent ends its reply with one fenced `json` block matching `.github/aoh/schemas/subagent-result.schema.json`. The exact shape and field rules are pushed to every agent from `knowledge/shared/config.md`; `checks` must be objects, not strings:
+
+```json
+{
+  "agent": "Trade Capture Developer",
+  "status": "completed",
+  "summary": "Added validateTradeId() to trades.mjs with four tests.",
+  "files_changed": ["examples/equities/trade-capture/trades.mjs", "examples/equities/trade-capture/trades.test.mjs"],
+  "checks": [{ "name": "npm test", "result": "passed", "details": "8 tests, 0 failures" }],
+  "confidence": { "score": 0.8, "rationale": "Covers format and calendar dates; leap years not tested." },
+  "blockers_or_risks": [],
+  "metrics": { "tests_passed": 8 }
+}
+```
+
+`status` is one of `completed`, `partial`, `blocked` or `failed`. The orchestrator saves each report to `.aoh/runs/<run-id>/`, and `npm run validate-reports -- .aoh/runs/<run-id>` checks them. Reports are self-assessments: the orchestrator summarises them for the human and does not claim to have verified the work.
+
+### Resuming a run
+
+Each finished step leaves a numbered report in `.aoh/runs/<run-id>/`, so the reports are also the run's progress record. When an orchestrator starts a session it lists `.aoh/runs/`. If a run stopped early (its last report isn't the final step, or its last status isn't `completed`), it tells you where the run stopped and offers to resume from the next step or start fresh. A resumed run asks for approval again before any edit step, and the next subagent is given the earlier reports to build on.
+
+## Quickstart
+
+Requires VS Code with GitHub Copilot (agent mode) and Node.js 22+.
+
+1. Clone the repo and open it in VS Code. Trust the workspace so hooks can run.
+2. Run `npm run check` to confirm the agents, knowledge tree and schema are consistent.
+3. Open Copilot Chat, pick **Trade Capture Orchestrator** in the agent picker, and ask:
+   > Add `validateTradeId()` with tests to the Trade Capture module.
+4. The orchestrator asks the **Equities Architect** for a plan and shows it to you. Approve it.
+5. The **Trade Capture Developer** implements it and runs `npm test`. The **Trade Capture Reviewer** reviews it.
+6. Read the summary, then run `npm run validate-reports -- .aoh/runs/<run-id>`.
+
+To confirm the hooks fired, check `.aoh/logs/hook-trace.log`: you should see one `sessionStart` line for the orchestrator and one `subagentStart` line per subagent, each with the number of config files injected.
+
+## Adding a subagent
+
+1. Copy `.github/aoh/templates/subagent.agent.md` to `.github/agents/<agent-name>.agent.md`. Set `name`, `description`, `tools`, `agents: []` and `user-invocable: false`.
+2. Create its knowledge folder in the right place in the tree, for example `knowledge/equities/risk-analytics/<agent-name>/config.md`. The folder name must be the agent `name` in lowercase with hyphens.
+3. Add the agent's `name` to the `agents:` list of each orchestrator that should call it: its team orchestrator and, for team specialists, the division orchestrator.
+4. If it edits files, make sure its team `config.md` declares a write scope.
+5. Run `npm run check`.
+
+### Adding a team
+
+Create `knowledge/<division>/<team>/config.md` (write scope, test command, rules, skills), a `<team>-orchestrator` agent from `templates/orchestrator.agent.md` with its knowledge folder, and the team's specialists. Keep the orchestrator's agent-scoped `sessionStart` hook and change the name it passes. Add the specialists to the division orchestrator's `agents:` list.
+
+## Replacing the example organisation
+
+1. Rename `knowledge/equities/` to your division and the team folders to your teams.
+2. Rewrite each `config.md` with your own rules. Delete agents and teams you don't need.
+3. Rename the agent files and their `name` fields to match the new folders.
+4. Update `project.name` in `aoh.yaml` and the write scopes in each team `config.md`.
+5. Delete `examples/` once you are working on real code.
+6. Run `npm run check`; it reports any agent without a knowledge folder and any `agents:` entry that doesn't resolve.
+
+## Optional layers
+
+The core (agents, knowledge push, status contract, approval gate) needs no external services.
+
+- **MCP:** add servers in `.vscode/mcp.json` and grant them per agent with `tools: ['<server>/*']`. Not used by the example.
+- **Persistent memory:** `.aoh/memory/` is reserved for it. Not implemented; decide retention and redaction before adding it.
+- **Hook trace:** `features.hook_trace` (on in the example) logs each hook firing to `.aoh/logs/hook-trace.log`: agent name and file count only, never content.
+
+## Limits and open problems
+
+- **Hooks depend on the harness.** The context hooks use Copilot's `subagentStart` event and agent-scoped `sessionStart` hooks; behaviour may differ between the Copilot and Local harnesses. Hook failures and timeouts are fail-open, so an agent can run without its context. Every agent is told to load its own chain if the context block is missing, and to report `blocked` if it can't. Turn on `features.hook_trace` and check `.aoh/logs/hook-trace.log` to see whether they fire in your setup.
+- **Reports are self-assessed.** The schema checks a report's shape, not whether it is true.
+- **No evals yet.** There is no automated way to measure whether the agents do the right thing. That is the main gap.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `npm run check` | Checks agent frontmatter, `agents:` references, knowledge folders, workflows, skills and the schema |
+| `npm test` | Runs the demo tests |
+| `npm run validate-reports -- <dir or file>` | Validates status reports against the schema |
+| `npm run context -- "<Agent Name>"` | Prints exactly what the hooks inject for that agent |

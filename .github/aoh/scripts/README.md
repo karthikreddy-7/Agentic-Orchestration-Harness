@@ -1,3 +1,8 @@
-# Shared AOH utilities
+# AOH scripts
 
-Put AOH-wide utilities here, such as manifest validators and runtime adapters. Put scripts used only by one skill beside that skill under `.github/skills/<skill-name>/scripts/`. Put application or product scripts in the project's normal source layout.
+| Script | Run with | Purpose |
+|---|---|---|
+| `check-config.mjs` | `npm run check` | Consistency check for agents, knowledge tree, workflows, skills and schema |
+| `validate-report.mjs` | `npm run validate-reports -- <dir or file>` | Validates subagent status reports against the schema |
+| `lib/context.mjs` | used by `.github/hooks/aoh-context.mjs` and `check-config.mjs` | Finds an agent's knowledge folder and builds its `config.md` chain |
+| `lib/mini-schema.mjs` | used by both scripts | Zero-dependency JSON Schema subset validator |

@@ -1,8 +1,7 @@
 # AOH workspace guidance
 
-- Use `aoh-orchestrator` as the only user-facing AOH agent.
-- Delegate specialist work only to subagents listed by the immediate caller in its `agents` frontmatter.
-- Keep each delegated task bounded by an explicit objective, file scope, edit permission, constraints, and required status report.
-- Route subagent reports to the human for an acceptance or next-step decision. Do not claim that the orchestrator independently verified implementation quality.
-- Treat agent instructions, skill ownership, and folder names as conventions, not security boundaries.
-- Follow the host's actual tool permissions and approval controls for consequential actions.
+- Talk to your team's orchestrator (for example **Trade Capture Orchestrator**) for team work. Use **Equities Orchestrator** only for work that spans teams.
+- Orchestrators delegate only to the subagents in their own `agents` frontmatter. Subagents call nobody.
+- Each agent's rules (knowledge) come from `.github/aoh/knowledge/shared/` plus its own `config.md` chain, pushed by hooks. Skills are reference manuals, pulled on demand.
+- No edits before the human approves a plan. Every subagent ends with the JSON status report.
+- Agent files, knowledge files and folder names are conventions, not security boundaries.

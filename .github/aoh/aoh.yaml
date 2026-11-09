@@ -1,15 +1,18 @@
 version: 1
 project:
   name: replace-with-project-name
-  description: Project-specific AOH configuration
+  description: Replace with a one-line description of this project.
 
+# Agents, their division/team and their rules are NOT listed here: they come from
+# the folder tree under knowledge/ (one config.md per layer). Write scopes live in
+# each team's config.md.
+knowledge_root: knowledge
+
+# Where orchestrators save subagent status reports (gitignored runtime state).
+runs_dir: .aoh/runs
+
+# Extension points, not implemented. The core works with both off.
 features:
-  hooks: false
-  persistent_memory: false
-  external_mcp: false
-
-workflows:
-  directories:
-    - workflows/shared
-
-teams: []
+  persistent_memory: false # would use .aoh/memory/
+  external_mcp: false      # would use .vscode/mcp.json and tools: ['<server>/*']
+  hook_trace: true         # log each hook firing (agent + files injected, no content) to .aoh/logs/hook-trace.log
